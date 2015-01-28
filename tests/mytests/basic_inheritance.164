@@ -1,0 +1,3 @@
+def x = Object:new({k = 3})
+def y = x:new({})
+print y.k

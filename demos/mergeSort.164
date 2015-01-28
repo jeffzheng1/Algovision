@@ -1,0 +1,41 @@
+def r = {}
+r[0] = 0
+r[1] = 1
+r[2] = 2
+r[3] = 3
+r[4] = 4
+r[5] = 5
+r[6] = 6
+r[7] = 7
+r[8] = 8
+r[9] = 9
+r[10] = 10
+r[11] = 11
+r[12] = 12
+r[13] = 13
+
+print len(r)
+
+def merge_sort(n) {
+    def r = len(n)
+    if (r == 1 || r == 0) {
+        n
+    } else {
+        def left = {}
+        def i = 0
+        while (i < r / 2) {
+            left[i] = n[i]
+            i = i + 1
+        }
+        def right = {}
+        def x = 0
+        while (i < r) {
+            right[x] = n[i]
+            i = i + 1
+            x = x + 1
+        }
+        merge(merge_sort(left), merge_sort(right))
+    }
+}
+def merge(l, r) {}
+draw(merge_sort(r))

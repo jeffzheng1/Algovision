@@ -1,0 +1,48 @@
+def r = {}
+r[0] = 0
+r[1] = 1
+r[2] = 2
+r[3] = 3
+r[4] = 4
+r[5] = 5
+r[6] = 6
+r[7] = 7
+r[8] = 8
+r[9] = 9
+r[10] = 10
+r[11] = 11
+r[12] = 12
+r[13] = 13
+r[14] = 14
+r[15] = 15
+r[16] = 16
+r[17] = 17
+r[18] = 18
+r[19] = 19
+r[20] = 20
+def binsearch (arr, n) {
+    def length = len(arr)
+    def mid = length / 2
+    if (n == arr[mid]) {
+        n
+    } else {
+        if (n < arr[mid]) {
+            def left = {}
+            def i = 0
+            while (i < mid) {
+                left[i] = arr[i]
+                i = i + 1
+            }
+            binsearch(left, n)
+        } else {
+            def right = {}
+            def i = mid
+            while (i < length) {
+                right[i] = arr[i]
+                i = i + 1
+            }
+            binsearch(right, n)
+        }
+    }
+}
+draw(binsearch(r, 2))

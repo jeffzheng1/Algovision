@@ -1,0 +1,21 @@
+def iter() {
+    def i = 0
+    lambda() {
+        if (i < 10) {
+            i = i + 1
+            i
+        } else {
+            null
+        }
+    }
+}
+
+def comp() {
+    [i * 2 for i in iter()]
+}
+
+def x = Object:new({})
+
+x.comp = lambda(self) {comp()}
+
+print [i for i in x:comp()]

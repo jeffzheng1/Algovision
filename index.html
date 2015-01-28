@@ -1,0 +1,438 @@
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>AlgoVision</title>
+    <link rel="stylesheet" type="text/css" media="screen" href="css/tipsy.css">
+    <link rel="stylesheet" type="text/css" media="screen" href="css/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" media="screen" href="css/index.css">
+    <link rel="stylesheet" type="text/css" media="screen" href="css/sticky-footer.css">
+    <link href='http://fonts.googleapis.com/css?family=Lato&subset=latin,latin-ext' rel='stylesheet' type='text/css'>
+  </head>
+
+  <body>
+    <div id="wrap">
+      <div class="navbar navbar-default navbar-static-top color">
+        <div class="container">
+          <div class="text-center">
+              <h1 class="white">AlgoVision</h1>
+          </div>
+        </div>
+      </div>
+      <div class="container">
+        <div class="row">
+          <div id="input" class="col-md-6">
+            <h2 class="text-center">Input</h2>
+            <textarea id="eval">
+def fib(n) {
+    if (n == 0) {
+        0
+    } else {
+        if (n == 1) {
+            1
+        } else {
+            fib(n - 1) + fib(n- 2)
+        }
+    }
+}
+
+draw(fib(4))
+            </textarea>
+          <br/>
+          <button type="button" class="btn btn-sm" id="go">Go!</button>
+          </div>
+          <div id="output" class="col-md-6">
+            <h2 class="text-center">Code Output</h2>
+            <pre id="out"></pre>
+          </div>
+        </div>
+      </div>
+      <h2 class="text-center">Draw Output</h2>
+      <div id="underline"></div>
+      <button type="button" class="btn btn-md toggle" title="Legend" data-placement="bottom" data-toggle="popover" trigger="focus" tabindex="0" data-content="Please draw a function first." id="legend" data-html="true">Toggle Legend</button>
+      <button type="button" class="btn btn-md toggle" title="Runtime Analysis" data-placement="top" data-toggle="popover" trigger="focus" tabindex="0" data-content="Please draw a function first." id="runtime" data-html="true">Toggle Runtime</button>
+      <button type="button" class="btn btn-md toggle" title="Plot of Runtime" data-toggle="popover" trigger="focus" tabindex="0" data-content="Please draw a function first." id="plot" data-html="true">Toggle Plot</button>
+
+      <div class="viewport" id="canvas" class="text-center"></div>
+      <div id="push"></div>
+    </div>
+    
+    <div id="footer">
+      <div class="containerF text-center">
+          <p class="credit">Created by Jeff Zheng, Serena Chan, Pierce McEntagart</p>
+      </div>
+    </div>
+
+  </body>
+  <script charset="utf-8" src="js/jquery-1.11.1.js"></script>
+  <script charset="utf-8" src="errors.js"></script>
+  <script charset="utf-8" src="environment.js"></script>
+  <script charset="utf-8" src="rparse.js"></script>
+  <script charset="utf-8" src="desugar.js"></script>
+  <script charset="urf-8" src="table.js"></script>
+  <script charset="utf-8" src="interpreter.js"></script>
+  <script src="js/underscore-min.js" charset="utf-8"></script>
+  <script src="js/d3.min.js" charset="utf-8"></script>
+  <script src="js/geometricFunctions.js" charset="utf-8"></script>
+  <script src="js/jquery.tipsy.js" charset="utf-8"></script>
+  <script src="js/bootstrap.min.js" charset="utf-8"></script>
+  <script charset="utf-8">
+
+    window.onload = function() { 
+      $(function () {
+        $('[data-toggle="popover"]').popover()
+      })
+      var tree = [];
+      var w = 2000; //width of canvas
+      var h = 800; //height of canvas
+      var padding = 20; //padding to avoid elements in canvas being cut off
+      var radius = 20; //radius of circles
+      var heightIncrement = 65; //height between nodes of two different depths
+      var runtime;
+      var rPlot;
+
+      //Create SVG element
+      var svg = d3.select("#canvas")
+                  .append("svg")
+                  .attr("width", w)
+                  .attr("height", h)
+                  .attr("class", "scroll-svg");
+
+      $(".viewport").scrollLeft(285);
+
+      //function that detects collisions by using quadtress, 
+      //a two-dimensional recursive spatial subdivision
+      function collide(node) {
+        var r = node.radius + 100;
+        var nx1 = node.x - r;
+        var nx2 = node.x + r;
+        var ny1 = node.y - r;
+        var ny2 = node.y + r;
+        return function(quad, x1, y1, x2, y2) {
+          if (quad.point && (quad.point !== node)) {
+            var x = node.x - quad.point.x;
+            var y = node.y - quad.point.y;
+            var l = Math.sqrt(x * x + y * y);
+            r = node.radius + quad.point.radius;
+            if (l < r) {
+              l = (l - r) / l * .5;
+              node.x -= x *= l;
+              node.y -= y *= l;
+              quad.point.x += x;
+              quad.point.y += y;
+            }
+          }
+          return x1 > nx2 || x2 < nx1 || y1 > ny2 || y2 < ny1;
+        };
+      }
+
+      //appends lines for parent and child
+      function drawTreeLines() {
+        for (var i = 0; i < tree.length; i++) {
+          var x1 = tree[i]["x"];
+          var y1 = tree[i]["y"];
+          var a = [x1, y1]
+          for (var j = 0; j < tree[i].children.length; j++) {
+            var child = tree[tree[i].children[j]];
+            if (child) {
+              var x2 = child["x"];
+              var y2 = child["y"];
+              var b = [x2, y2]
+              var c = [x2, y2, radius]
+              var intersect1 = getIntersections(a, b, c)
+              x2prime = intersect1.points.intersection1.coords[0]
+              y2prime = intersect1.points.intersection1.coords[1]
+              c = [x1, y1, radius]
+              var intersect2 = getIntersections(a, b, c)
+              x1prime = intersect2.points.intersection2.coords[0]
+              y1prime = intersect2.points.intersection2.coords[1]
+              svg.append("line")
+                .style("opacity", 0)
+                .attr("x1", x1prime)
+                .attr("y1", y1prime)
+                .attr("x2", x2prime)
+                .attr("y2", y2prime)
+                .attr("stroke-width", .75)
+                .attr("stroke", "black")
+                .transition().duration(500)
+                .style("opacity", 1);
+            }
+          }
+        }
+      };
+
+      function findNode(nodeID) { 
+        for (var i = 0; i < tree.length; i++) {
+          if (tree[i].nodeID == nodeID) { 
+            return tree[i];
+          }
+        }
+      }
+
+      function assignCoordinates(tree) { 
+        for (var i = 0; i < tree.length; i++) {
+          if (i == 0) { 
+            tree[i].x = w/2;
+            tree[i].y = 30;
+          } 
+          node = findNode(i);
+          if (node) {
+            numChildren = node.children.length;
+            for (var j = 0; j < numChildren; j++) {
+              var child = tree[node.children[j]];
+              if (baseX < 0) { 
+                w = w*1.25;
+                h = h*1.1;
+                heightIncrement += 10;
+                svg.attr("width", w)
+                   .attr("height", h);
+                return assignCoordinates(tree);
+              }
+              var baseX = node.x - numChildren * 12.5 * (tree.length*.2 * (1/(node.depth+1)));
+              if (child) {
+                child.x = baseX + j * 50 * (tree.length*.2 * 1/(node.depth+1)) + 1/(node.nodeID+1);
+                child.y = node.y + heightIncrement;
+              }
+            }  
+          }
+        }
+        for (var i = 0; i < tree.length; i++) {
+          for (var j = 0; j < tree.length; j++) {
+            if (i != j) { 
+              if (tree[i].x == tree[j].x && tree[i].y == tree[j].y) { 
+                if (tree[i].nodeID < tree[j].nodeID) { 
+                  tree[i].x -= 19.5
+                  tree[j].x += 10.5
+                }
+              }
+              if ((tree[i].x - tree[j].x) > 0 && (tree[i].x - tree[j].x) < 20 && tree[i].y == tree[j].y) { 
+                if (tree[i].nodeID < tree[j].nodeID) { 
+                  tree[i].x -= 22.5
+                  tree[j].x += 15.5
+                }
+              }
+            }
+          }
+        }
+      }
+
+      function reassignChildren(nodeID) { 
+        node = findNode(nodeID);
+        numChildren = node.children.length;
+        for (var j = 0; j < numChildren; j++) {
+          var child = tree[node.children[j]];
+          var baseX = node.x - numChildren * 12.5;
+          if (child) {
+            child.x = baseX + j * 50
+          }
+        }  
+      }
+
+      function formatRuntime(runtime) { 
+        var newStr = "";
+
+      }
+
+      function createVisual() {
+        svg.selectAll("line").remove(); //remove old parent-child lines
+
+        //initializes nodes for collision detection
+        var reAssign = []
+        nodes = d3.range(tree.length).map(function() { return {radius: radius}; })
+        var i = 0;
+        var n = nodes.length;
+        while (i < n) { 
+            nodes[i].x = tree[i].x;
+            nodes[i].y = tree[i].y;
+            i++;
+        }
+        
+        //adds runtime analysis to popover element
+        
+        $('#runtime').attr("data-content", runtime);
+        
+        //Uses d3 to populate a dataset containing mappings from deprecated function 
+        //name to full name for legend
+        var assignedLegends = [];
+        var offset = -1;
+        var legend = svg.selectAll(".legend").data(tree, function(d) { return d.nodeID; }); 
+        legend.enter().append("text").classed("legend", true).style("opacity", 0); 
+        legend.text(function(d) { 
+                  if (!_.contains(assignedLegends, d.deprecated)) {
+                    assignedLegends.push(d.deprecated)
+                    return d.deprecated;
+                  }
+                })
+        legend.exit().remove();
+        var str = "";
+        for (var counter = 0; counter < assignedLegends.length; counter++) { 
+          str += assignedLegends[counter] + "<br/>";
+        }
+        //adds legend to popover element
+        $('#legend').attr("data-content", str);
+
+        $('#plot').attr("data-content", rPlot);
+
+        //ANIMATES EACH NODE IN TREE
+        //each circle represents a node in the tree
+        color = d3.scale.category10();
+        var circles = svg.selectAll("circle").data(tree, function(d) { return d.nodeID; } ); //binds data to circle element in svg canvas
+        circles.transition().delay(500).duration(500).style("opacity", 1)
+                .attr("cx", function(d) { //animates existing circles
+                    return d.x;
+                })
+                .attr("cy", function(d) {
+                    return d.y;
+                });
+        circles.enter().append("circle").style("opacity", 0); //adds circles that have binded data to canvas
+
+        //Collision detection to prevent nodes from overlapping
+        //using quadtrees in d3
+        var q = d3.geom.quadtree(nodes);
+        var n = nodes.length;
+        for (i in _.range(10)) { 
+          var i = 0;
+          while (++i < n) q.visit(collide(nodes[i]));
+        }
+        var i = 0;
+        while (i < n) {
+          if (tree[i].x != nodes[i].x) { 
+            reAssign.push(tree[i].nodeID);
+          }
+          tree[i].x = nodes[i].x;
+          tree[i].y = nodes[i].y; 
+          i++;
+        }
+        for (nodeID in reAssign) { 
+          reassignChildren(reAssign[nodeID]);
+        }
+        for (i in _.range(10)) { 
+          var i = 0;
+          while (++i < n) q.visit(collide(nodes[i]));
+        }
+        var i = 0;
+        while (i < n) {
+          if (tree[i].x != nodes[i].x) { 
+            reAssign.push(tree[i].nodeID);
+          }
+          tree[i].x = nodes[i].x;
+          tree[i].y = nodes[i].y; 
+          i++;
+        }
+
+        //assigns coordinates to circles after collision detection
+        circles.transition().duration(500).style("opacity", .75) //animates and instantiates attributes for new circles
+                .style("fill", function(d, i) { 
+                    return color(i % 5);
+                })  
+                .attr("cx", function(d) {
+                    return d.x;
+                })
+                .attr("cy", function(d) {
+                    return d.y;
+                })
+                .attr("r", radius);
+        circles.exit().transition().duration(500).style("opacity", 0).remove(); //removes circles with no data binded
+        
+        //ANIMATES KEY TEXT OF EACH CIRCLE
+        //each label represents name of function
+        var labels = svg.selectAll(".labels").data(tree, function(d) { return d.nodeID; }); //binds data to element with class labels in svg canvas
+        labels.transition().delay(500).duration(500).style("opacity", 1)
+                .attr("x", function(d) { //animates existing labels
+                        var str = d.key;
+                        var length = str.length;
+                        return d.x - length * 2.5;
+                    })
+                    .attr("y", function(d) {
+                        return d.y + 5;
+                    });
+        labels.enter().append("text").classed("labels", true).style("opacity", 0); //adds text elements that have binded data to canvas
+        labels.text(function(d) { //animates and instantiates attributes for new labels
+                    return d.key;
+                })
+                .transition().duration(500).style("opacity", 1)
+                .attr("x", function(d) {
+                    var str = d.key;
+                    var length = str.length;
+                    return d.x - length * 2.5;
+                })
+                .attr("y", function(d) {
+                    return d.y + 2.5;
+                })
+                .attr("font-weight", "bold")
+                .attr("font-family", "lato")
+                .attr("font-size", "12px")
+                .attr("fill", "black");
+        labels.exit().transition().duration(500).style("opacity", 0).remove(); //removes labels with no data binded
+
+        //adds mouse hover action for nodes
+        $('svg text').tipsy({ 
+            gravity: 'w', 
+            html: true, 
+            title: function() {
+                var d = this.__data__, c = d.function;
+                return c ; 
+            }
+        });
+
+        drawTreeLines();
+      }
+
+      // readStringFromFileAtPath function adapted from 
+      // http://thiscouldbebetter.wordpress.com/2013/01/31/reading-a-string-from-a-file-in-javascript/
+      function readStringFromFileAtPath(filePath){
+        var request = new XMLHttpRequest();
+        request.open("GET", filePath, false);
+        request.send(null);
+        return request.responseText;
+      }
+        
+      document.getElementById("go").onclick = function() {
+        var srcFiles = ["library.164", "object.164"];
+        var srcs = [];
+        for (var i in srcFiles){
+          srcs.push(readStringFromFileAtPath(srcFiles[i]));
+        }
+      
+        var out = document.getElementById("out");
+        while (out.firstChild) {
+          out.removeChild(out.firstChild);
+        }
+        var draw = false;
+        var image = false;
+        var plot = false;
+        srcs.push(document.getElementById("eval").value);
+        rparse(srcs, function(input_asts) {
+          interpret(input_asts, function(x) {
+            if (!draw && !image && !plot && x != "JSON" &&
+            x != "Image" && x != "Plot") { 
+              out.innerText += x + "\n";
+            }
+            if (x == "JSON") { 
+              draw = true;
+            }
+            if (draw && x != "JSON") { 
+              tree = x;
+              assignCoordinates(tree);
+              createVisual();
+              draw = false;
+            } 
+            if (x == "Image") { 
+              image = true;
+            }
+            if (image && x != "Image") { 
+              runtime = x;
+              image = false;
+            } 
+            if (x == "Plot") { 
+              plot = true;
+            }
+            if (plot && x != "Plot") { 
+              rPlot = x;
+              plot = false;
+            }
+          });
+        });
+      }
+    }
+  </script>
+</html>

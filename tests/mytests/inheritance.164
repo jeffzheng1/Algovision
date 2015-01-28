@@ -1,0 +1,7 @@
+def x = Object:new({})
+x.print_three = lambda(self) {
+    print self.three
+}
+def y = x:new({})
+def k = y:new({three = 3})
+k:print_three()
